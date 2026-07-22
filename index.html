@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Onboarding app</title>
+<title>Send to Master Card for new block - TCSB</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js"></script>
@@ -510,7 +510,7 @@
       <div class="record-table-wrap">
         <table class="record-table">
           <thead>
-            <tr><th>No.</th><th>Sent Date</th><th>Customer</th><th>Product Code</th><th>Person in chart</th><th>Date Block</th></tr>
+            <tr><th>No.</th><th>Sent Date</th><th>Customer</th><th>Product Code</th><th>Person in chart</th><th>Plate Date</th><th>Date Block</th></tr>
           </thead>
           <tbody id="record-tbody"></tbody>
         </table>
@@ -656,13 +656,13 @@ async function loadRecords(){
   if(error){ console.error('loadRecords error:', error); return []; }
   return data.map(r => ({
     id: r.id, sentDate: r.sent_date, customerName: r.customer_name, productCode: r.product_code,
-    personInCharge: r.person_in_charge, dateBlock: r.date_block
+    personInCharge: r.person_in_charge, dateBlock: r.date_block, plateDate: r.plate_date
   }));
 }
 async function insertRecord(rec){
   const { error } = await sb.from('records').insert({
     id: rec.id, sent_date: rec.sentDate, customer_name: rec.customerName, product_code: rec.productCode,
-    person_in_charge: rec.personInCharge, date_block: rec.dateBlock
+    person_in_charge: rec.personInCharge, date_block: rec.dateBlock, plate_date: rec.plateDate || null
   });
   if(error) console.error('insertRecord error:', error);
 }
@@ -673,6 +673,10 @@ async function updateRecordPerson(id, personInCharge){
 async function updateRecordDateBlock(id, dateBlock){
   const { error } = await sb.from('records').update({ date_block: dateBlock }).eq('id', id);
   if(error) console.error('updateRecordDateBlock error:', error);
+}
+async function updateRecordPlateDate(id, plateDate){
+  const { error } = await sb.from('records').update({ plate_date: plateDate }).eq('id', id);
+  if(error) console.error('updateRecordPlateDate error:', error);
 }
 
 const views = {
@@ -1196,7 +1200,7 @@ async function renderRecordData(){
 
   const tbody = document.getElementById('record-tbody');
   if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6"><div class="cust-empty">ไม่พบข้อมูล</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="cust-empty">ไม่พบข้อมูล</div></td></tr>';
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => `
@@ -1208,8 +1212,16 @@ async function renderRecordData(){
       <td>${esc(r.personInCharge || '-')}</td>
       <td>
         <div class="dateblock-cell">
+          <span class="pd-display">${esc(r.plateDate || '-')}</span>
+          <button class="pencil-btn" data-id="${r.id}" data-field="plate" title="แก้ไข Plate Date">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>
+          </button>
+        </div>
+      </td>
+      <td>
+        <div class="dateblock-cell">
           <span class="db-display">${esc(r.dateBlock || '-')}</span>
-          <button class="pencil-btn" data-id="${r.id}" title="แก้ไข Date Block">
+          <button class="pencil-btn" data-id="${r.id}" data-field="block" title="แก้ไข Date Block">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>
           </button>
         </div>
@@ -1219,14 +1231,21 @@ async function renderRecordData(){
 
   tbody.querySelectorAll('.pencil-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      const field = btn.dataset.field; // 'plate' or 'block'
       const cell = btn.closest('.dateblock-cell');
       const rec = rows.find(r => r.id === btn.dataset.id);
-      const current = rec && rec.dateBlock ? rec.dateBlock : '';
-      cell.innerHTML = `<input type="date" class="dateblock-input" value="${current}" data-id="${btn.dataset.id}">`;
+      const current = field === 'plate'
+        ? (rec && rec.plateDate ? rec.plateDate : '')
+        : (rec && rec.dateBlock ? rec.dateBlock : '');
+      cell.innerHTML = `<input type="date" class="dateblock-input" value="${current}" data-id="${btn.dataset.id}" data-field="${field}">`;
       const input = cell.querySelector('input');
       input.focus();
       const commit = async () => {
-        await updateRecordDateBlock(input.dataset.id, input.value || null);
+        if(field === 'plate'){
+          await updateRecordPlateDate(input.dataset.id, input.value || null);
+        } else {
+          await updateRecordDateBlock(input.dataset.id, input.value || null);
+        }
         renderRecordData();
       };
       input.addEventListener('change', commit);
@@ -1245,6 +1264,7 @@ document.getElementById('btn-export-excel').addEventListener('click', async () =
     'Customer': r.customerName || '-',
     'Product Code': r.productCode,
     'Person in chart': r.personInCharge || '-',
+    'Plate Date': r.plateDate || '-',
     'Date Block': r.dateBlock || '-'
   }));
   const ws = XLSX.utils.json_to_sheet(data);
@@ -1272,9 +1292,9 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
 
   doc.autoTable({
     startY: 28,
-    head: [['No.', 'Sent Date', 'Customer', 'Product Code', 'Person in chart', 'Date Block']],
+    head: [['No.', 'Sent Date', 'Customer', 'Product Code', 'Person in chart', 'Plate Date', 'Date Block']],
     body: rows.map((r, idx) => [
-      idx+1, r.sentDate, r.customerName || '-', r.productCode, r.personInCharge || '-', r.dateBlock || '-'
+      idx+1, r.sentDate, r.customerName || '-', r.productCode, r.personInCharge || '-', r.plateDate || '-', r.dateBlock || '-'
     ]),
     styles: { font: FONT, fontSize: 9 },
     headStyles: { font: FONT, fontStyle: 'bold', fillColor: [27,58,102] }
