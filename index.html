@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --yolk:#F6C445;
@@ -228,6 +229,12 @@
     font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:20px;cursor:pointer;
   }
   .assign-pill:hover{border-color:var(--orange);background:#FFF6E8;}
+  .assign-pill.selected{background:var(--orange);border-color:var(--orange);color:#fff;}
+  .assign-confirm-btn{
+    appearance:none;border:none;background:var(--navy);color:#fff;
+    font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:20px;cursor:pointer;
+  }
+  .assign-confirm-btn:hover{background:var(--navy-deep);}
   .diary-empty{
     text-align:center;color:var(--ink-soft);font-size:13.5px;padding:50px 10px;
     background:#fff;border:1.5px solid var(--card-border);border-radius:18px;
@@ -375,7 +382,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
         </div>
         <div class="role-text">
-          <div class="name">Art-work Diary</div>
+          <div class="name">Art-work Daily</div>
           <div class="desc">แจกงานประจำวัน</div>
         </div>
         <div class="role-check"></div>
@@ -551,6 +558,16 @@
         <div class="team-name">Jin</div>
         <div class="team-fullname">Narin</div>
       </div>
+      <div class="team-block" data-person="Film">
+        <div class="team-avatar">Fm</div>
+        <div class="team-name">Film</div>
+        <div class="team-fullname">Rachapol</div>
+      </div>
+      <div class="team-block" data-person="Pueng">
+        <div class="team-avatar">Pg</div>
+        <div class="team-name">Pueng</div>
+        <div class="team-fullname">Nongnuch</div>
+      </div>
     </div>
   </div>
 
@@ -593,25 +610,40 @@ async function fetchJobFileBlob(file){
   return data;
 }
 
+// assigned_to is stored as a JSON array string (e.g. '["Au","Aum"]') to support multiple assignees.
+// Falls back to treating old plain-string values (e.g. "Au") as a single-person array for backward compatibility.
+function parseAssignedTo(raw){
+  if(!raw) return [];
+  if(Array.isArray(raw)) return raw;
+  try{
+    const parsed = JSON.parse(raw);
+    if(Array.isArray(parsed)) return parsed;
+  }catch(e){}
+  return [raw];
+}
+
 async function loadPlanningJobs(){
   const { data, error } = await sb.from('jobs').select('*').order('created_at', { ascending: true });
   if(error){ console.error('loadPlanningJobs error:', error); return []; }
   return data.map(j => ({
     id: j.id, custCode: j.cust_code, customerName: j.customer_name, productCode: j.product_code,
     newProductFile: j.new_product_file, masterCardFile: j.master_card_file,
-    createdAt: j.created_at, assignedTo: j.assigned_to, assignedAt: j.assigned_at
+    createdAt: j.created_at, assignedTo: parseAssignedTo(j.assigned_to), assignedAt: j.assigned_at
   }));
 }
 async function insertPlanningJob(job){
   const { error } = await sb.from('jobs').insert({
     id: job.id, cust_code: job.custCode, customer_name: job.customerName, product_code: job.productCode,
     new_product_file: job.newProductFile, master_card_file: job.masterCardFile,
-    created_at: job.createdAt, assigned_to: job.assignedTo, assigned_at: job.assignedAt
+    created_at: job.createdAt, assigned_to: null, assigned_at: job.assignedAt
   });
   if(error) throw error;
 }
-async function updateJobAssignment(id, assignedTo, assignedAt){
-  const { error } = await sb.from('jobs').update({ assigned_to: assignedTo, assigned_at: assignedAt }).eq('id', id);
+async function updateJobAssignment(id, assignedToArray, assignedAt){
+  const { error } = await sb.from('jobs').update({
+    assigned_to: assignedToArray && assignedToArray.length ? JSON.stringify(assignedToArray) : null,
+    assigned_at: assignedAt
+  }).eq('id', id);
   if(error) console.error('updateJobAssignment error:', error);
 }
 async function deleteJob(id){
@@ -699,7 +731,7 @@ document.getElementById('btn-continue').addEventListener('click', () => {
 });
 
 let selectedPerson = null;
-const TEAM_INFO = { Au:'Nisara', Aum:'Watchreewan', Good:'Pattaradet', Jin:'Narin' };
+const TEAM_INFO = { Au:'Nisara', Aum:'Watchreewan', Good:'Pattaradet', Jin:'Narin', Film:'Rachapol', Pueng:'Nongnuch' };
 document.querySelectorAll('.team-block').forEach(block => {
   block.addEventListener('click', () => {
     selectedPerson = block.dataset.person;
@@ -890,7 +922,7 @@ document.getElementById('btn-submit-planning').addEventListener('click', async (
     });
 
     msg.className = 'msg ok';
-    msg.textContent = 'บันทึกแล้ว งานถูกส่งเข้าคิว Art-work Diary';
+    msg.textContent = 'บันทึกแล้ว งานถูกส่งเข้าคิว Art-work Daily';
     custCodeSel.value = '';
     document.getElementById('p-custname').value = '';
     document.getElementById('p-productcode').value = '';
@@ -908,8 +940,8 @@ document.getElementById('btn-submit-planning').addEventListener('click', async (
   btn.disabled = false;
 });
 
-// ---------- Art-work Diary ----------
-const TEAM = ['Au','Aum','Good','Jin'];
+// ---------- Art-work Daily ----------
+const TEAM = ['Au','Aum','Good','Jin','Film','Pueng'];
 
 function pad2(n){ return n < 10 ? '0'+n : ''+n; }
 function dateStr(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
@@ -970,11 +1002,12 @@ async function renderDiary(){
             ${j.masterCardFile ? `<button class="file-chip" data-file="master" data-id="${j.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(j.masterCardFile.name)}</button>` : ''}
           </div>
           <div class="job-assign-row">
-            ${j.assignedTo
-              ? `<button class="assigned-badge" data-id="${j.id}">มอบให้ ${esc(j.assignedTo)} · เปลี่ยน</button>`
+            ${j.assignedTo && j.assignedTo.length
+              ? `<button class="assigned-badge" data-id="${j.id}">มอบให้ ${esc(j.assignedTo.join(', '))} · เปลี่ยน</button>`
               : `<button class="assign-btn" data-id="${j.id}">แจกงาน</button>`}
             <div class="assign-pills" id="pills-${j.id}">
-              ${TEAM.map(name => `<button class="assign-pill" data-id="${j.id}" data-name="${name}">${name}</button>`).join('')}
+              ${TEAM.map(name => `<button class="assign-pill${(j.assignedTo||[]).includes(name) ? ' selected' : ''}" data-id="${j.id}" data-name="${name}">${name}</button>`).join('')}
+              <button class="assign-confirm-btn" data-id="${j.id}">ยืนยันแจกงาน</button>
             </div>
           </div>
         </div>
@@ -999,24 +1032,66 @@ async function renderDiary(){
   });
 
   listEl.querySelectorAll('.assign-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('selected');
+    });
+  });
+
+  listEl.querySelectorAll('.assign-confirm-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
-      const name = btn.dataset.name;
-      await updateJobAssignment(id, name, new Date().toISOString());
-      await updateRecordPerson(id, name);
+      const pillsBox = document.getElementById('pills-' + id);
+      const selectedNames = Array.from(pillsBox.querySelectorAll('.assign-pill.selected')).map(p => p.dataset.name);
+      const nowIso = selectedNames.length ? new Date().toISOString() : null;
+      await updateJobAssignment(id, selectedNames, nowIso);
+      await updateRecordPerson(id, selectedNames.join(', '));
       renderDiary();
     });
   });
 }
 
-async function downloadFile(file){
-  if(!file) return;
+async function downloadJobFiles(job){
+  const files = [job.newProductFile, job.masterCardFile].filter(Boolean);
+  if(files.length === 0) return;
+
+  // Single file: download directly, no need to zip
+  if(files.length === 1){
+    try{
+      const blob = await fetchJobFileBlob(files[0]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = files[0].name || 'document';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }catch(e){
+      alert('ดาวน์โหลดไฟล์ไม่สำเร็จ: ' + (e && e.message ? e.message : e));
+    }
+    return;
+  }
+
+  // Multiple files: bundle into a single .zip so it downloads as one file
   try{
-    const blob = await fetchJobFileBlob(file);
-    const url = URL.createObjectURL(blob);
+    const zip = new JSZip();
+    const usedNames = new Set();
+    for(const file of files){
+      const blob = await fetchJobFileBlob(file);
+      let name = file.name || 'document.pdf';
+      if(usedNames.has(name)){
+        const dot = name.lastIndexOf('.');
+        name = dot > -1 ? `${name.slice(0,dot)}-${Date.now().toString(36).slice(-4)}${name.slice(dot)}` : `${name}-${Date.now().toString(36).slice(-4)}`;
+      }
+      usedNames.add(name);
+      zip.file(name, blob);
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = file.name || 'document';
+    const zipName = `${(job.customerName || job.custCode || 'job').replace(/[\\/:*?"<>|]/g,'_')}-${(job.productCode || '').replace(/[\\/:*?"<>|]/g,'_')}.zip`;
+    a.download = zipName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1026,18 +1101,13 @@ async function downloadFile(file){
   }
 }
 
-async function downloadJobFiles(job){
-  if(job.newProductFile) await downloadFile(job.newProductFile);
-  if(job.masterCardFile) await downloadFile(job.masterCardFile);
-}
-
 async function renderArtworkPersonal(){
   const listEl = document.getElementById('artwork-personal-list');
   listEl.innerHTML = '<div class="diary-empty">กำลังโหลด...</div>';
   const jobs = await loadPlanningJobs();
 
   const myJobs = jobs
-    .filter(j => j.assignedTo === selectedPerson)
+    .filter(j => Array.isArray(j.assignedTo) && j.assignedTo.includes(selectedPerson))
     .sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
 
   if(myJobs.length === 0){
