@@ -510,7 +510,7 @@
       <div class="record-table-wrap">
         <table class="record-table">
           <thead>
-            <tr><th>No.</th><th>Sent Date</th><th>Customer</th><th>Product Code</th><th>Person in chart</th><th>Plate Date</th><th>Date Block</th></tr>
+            <tr><th>No.</th><th>Sent Date</th><th>Customer</th><th>Product Code</th><th>Person in chart</th><th>Block Date</th><th>Plate Date</th></tr>
           </thead>
           <tbody id="record-tbody"></tbody>
         </table>
@@ -595,7 +595,8 @@ const FILES_BUCKET = 'job-files';
 // อัปโหลดไฟล์ขึ้น Supabase Storage แล้วคืนค่า {name,type,path} เพื่อเก็บใน jobs table
 async function uploadJobFile(file){
   if(!file) return null;
-  const path = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}-${file.name}`;
+  const ext = (file.name.match(/\.[^.]+$/) || [''])[0];
+  const path = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}${ext}`;
   const { error } = await sb.storage.from(FILES_BUCKET).upload(path, file, {
     contentType: file.type || 'application/pdf'
   });
@@ -677,6 +678,15 @@ async function updateRecordDateBlock(id, dateBlock){
 async function updateRecordPlateDate(id, plateDate){
   const { error } = await sb.from('records').update({ plate_date: plateDate }).eq('id', id);
   if(error) console.error('updateRecordPlateDate error:', error);
+}
+async function loadJobFilesMap(){
+  const { data, error } = await sb.from('jobs').select('id,new_product_file,master_card_file');
+  if(error){ console.error('loadJobFilesMap error:', error); return {}; }
+  const map = {};
+  data.forEach(j => {
+    map[j.id] = { newProductFile: j.new_product_file, masterCardFile: j.master_card_file };
+  });
+  return map;
 }
 
 const views = {
@@ -919,7 +929,7 @@ document.getElementById('btn-submit-planning').addEventListener('click', async (
 
     await insertRecord({
       id: newId,
-      sentDate: nowIso.slice(0,10),
+      sentDate: nowIso,
       customerName, productCode,
       personInCharge: null,
       dateBlock: null
@@ -961,6 +971,10 @@ function effectiveDateStr(iso){
 function fmtTime(iso){
   const d = new Date(iso);
   return d.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
+}
+function fmtDateTime(iso){
+  const d = new Date(iso);
+  return dateStr(d) + ' ' + d.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
 }
 
 async function openFile(file){
@@ -1193,29 +1207,30 @@ document.getElementById('btn-clear-record-filter').addEventListener('click', () 
 });
 
 async function renderRecordData(){
-  const records = await loadRecords();
+  const [records, jobFilesMap] = await Promise.all([loadRecords(), loadJobFilesMap()]);
   const filterDate = document.getElementById('record-date-filter').value;
-  const rows = (filterDate ? records.filter(r => r.sentDate === filterDate) : records.slice())
+  const rows = (filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records.slice())
     .sort((a,b) => a.sentDate < b.sentDate ? 1 : -1);
 
   const tbody = document.getElementById('record-tbody');
   if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7"><div class="cust-empty">ไม่พบข้อมูล</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="cust-empty">ไม่พบข้อมูล</div></td></tr>';
     return;
   }
-  tbody.innerHTML = rows.map((r, idx) => `
+  tbody.innerHTML = rows.map((r, idx) => {
+    const files = jobFilesMap[r.id] || {};
+    return `
     <tr data-id="${r.id}">
       <td>${idx+1}</td>
-      <td>${esc(r.sentDate)}</td>
+      <td>${esc(fmtDateTime(r.sentDate))}</td>
       <td>${esc(r.customerName || '-')}</td>
       <td>${esc(r.productCode)}</td>
       <td>${esc(r.personInCharge || '-')}</td>
       <td>
-        <div class="dateblock-cell">
-          <span class="pd-display">${esc(r.plateDate || '-')}</span>
-          <button class="pencil-btn" data-id="${r.id}" data-field="plate" title="แก้ไข Plate Date">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>
-          </button>
+        <div class="job-files">
+          ${files.newProductFile ? `<button class="file-chip" data-file="new" data-id="${r.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(files.newProductFile.name)}</button>` : ''}
+          ${files.masterCardFile ? `<button class="file-chip" data-file="master" data-id="${r.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(files.masterCardFile.name)}</button>` : ''}
+          ${(!files.newProductFile && !files.masterCardFile) ? '<span style="color:var(--ink-soft);font-size:12px;">-</span>' : ''}
         </div>
       </td>
       <td>
@@ -1226,12 +1241,29 @@ async function renderRecordData(){
           </button>
         </div>
       </td>
+      <td>
+        <div class="dateblock-cell">
+          <span class="pd-display">${esc(r.plateDate || '-')}</span>
+          <button class="pencil-btn" data-id="${r.id}" data-field="plate" title="แก้ไข Plate Date">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>
+          </button>
+        </div>
+      </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
+
+  tbody.querySelectorAll('.file-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const files = jobFilesMap[btn.dataset.id] || {};
+      const file = btn.dataset.file === 'new' ? files.newProductFile : files.masterCardFile;
+      openFile(file);
+    });
+  });
 
   tbody.querySelectorAll('.pencil-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const field = btn.dataset.field; // 'plate' or 'block'
+      const field = btn.dataset.field;
       const cell = btn.closest('.dateblock-cell');
       const rec = rows.find(r => r.id === btn.dataset.id);
       const current = field === 'plate'
@@ -1256,17 +1288,23 @@ async function renderRecordData(){
 
 document.getElementById('btn-export-excel').addEventListener('click', async () => {
   const records = await loadRecords();
+  const jobFilesMap = await loadJobFilesMap();
   const filterDate = document.getElementById('record-date-filter').value;
-  const rows = filterDate ? records.filter(r => r.sentDate === filterDate) : records;
-  const data = rows.map((r, idx) => ({
-    'No.': idx+1,
-    'Sent Date': r.sentDate,
-    'Customer': r.customerName || '-',
-    'Product Code': r.productCode,
-    'Person in chart': r.personInCharge || '-',
-    'Plate Date': r.plateDate || '-',
-    'Date Block': r.dateBlock || '-'
-  }));
+  const rows = filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records;
+  const data = rows.map((r, idx) => {
+    const files = jobFilesMap[r.id] || {};
+    return {
+      'No.': idx+1,
+      'Sent Date': fmtDateTime(r.sentDate),
+      'Customer': r.customerName || '-',
+      'Product Code': r.productCode,
+      'Person in chart': r.personInCharge || '-',
+      'New Product File': files.newProductFile ? files.newProductFile.name : '-',
+      'Master Card File': files.masterCardFile ? files.masterCardFile.name : '-',
+      'Date Block': r.dateBlock || '-',
+      'Plate Date': r.plateDate || '-'
+    };
+  });
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Record data');
@@ -1280,8 +1318,9 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
   const FONT = 'Sarabun';
 
   const records = await loadRecords();
+  const jobFilesMap = await loadJobFilesMap();
   const filterDate = document.getElementById('record-date-filter').value;
-  const rows = filterDate ? records.filter(r => r.sentDate === filterDate) : records;
+  const rows = filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records;
 
   doc.setFont(FONT, 'bold');
   doc.setFontSize(16);
@@ -1292,11 +1331,17 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
 
   doc.autoTable({
     startY: 28,
-    head: [['No.', 'Sent Date', 'Customer', 'Product Code', 'Person in chart', 'Plate Date', 'Date Block']],
-    body: rows.map((r, idx) => [
-      idx+1, r.sentDate, r.customerName || '-', r.productCode, r.personInCharge || '-', r.plateDate || '-', r.dateBlock || '-'
-    ]),
-    styles: { font: FONT, fontSize: 9 },
+    head: [['No.', 'Sent Date', 'Customer', 'Product Code', 'Person in chart', 'New Product File', 'Master Card File', 'Date Block', 'Plate Date']],
+    body: rows.map((r, idx) => {
+      const files = jobFilesMap[r.id] || {};
+      return [
+        idx+1, fmtDateTime(r.sentDate), r.customerName || '-', r.productCode, r.personInCharge || '-',
+        files.newProductFile ? files.newProductFile.name : '-',
+        files.masterCardFile ? files.masterCardFile.name : '-',
+        r.dateBlock || '-', r.plateDate || '-'
+      ];
+    }),
+    styles: { font: FONT, fontSize: 8 },
     headStyles: { font: FONT, fontStyle: 'bold', fillColor: [27,58,102] }
   });
 
