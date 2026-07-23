@@ -1315,7 +1315,7 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
 
   doc.autoTable({
     startY: 28,
-    head: [['No.', 'Sent Date', 'Customer', 'Product Code', 'Person in chart', 'New Product File', 'Master Card File', 'Date Block', 'Plate Date']],
+    head: [['No.', 'Sent Date', 'Customer', 'Product Code', 'Person in chart', 'Date Block', 'Plate Date']],
     body: rows.map((r, idx) => {
       const files = jobFilesMap[r.id] || {};
       return [
