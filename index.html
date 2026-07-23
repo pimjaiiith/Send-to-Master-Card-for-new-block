@@ -1207,7 +1207,7 @@ document.getElementById('btn-clear-record-filter').addEventListener('click', () 
 });
 
 async function renderRecordData(){
-  const [records, jobFilesMap] = await Promise.all([loadRecords(), loadJobFilesMap()]);
+  const records = await loadRecords();
   const filterDate = document.getElementById('record-date-filter').value;
   const rows = (filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records.slice())
     .sort((a,b) => a.sentDate < b.sentDate ? 1 : -1);
@@ -1218,7 +1218,7 @@ async function renderRecordData(){
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => {
-    const files = jobFilesMap[r.id] || {};
+    
     return `
     <tr data-id="${r.id}">
       <td>${idx+1}</td>
@@ -1226,13 +1226,7 @@ async function renderRecordData(){
       <td>${esc(r.customerName || '-')}</td>
       <td>${esc(r.productCode)}</td>
       <td>${esc(r.personInCharge || '-')}</td>
-      <td>
-        <div class="job-files">
-          ${files.newProductFile ? `<button class="file-chip" data-file="new" data-id="${r.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(files.newProductFile.name)}</button>` : ''}
-          ${files.masterCardFile ? `<button class="file-chip" data-file="master" data-id="${r.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(files.masterCardFile.name)}</button>` : ''}
-          ${(!files.newProductFile && !files.masterCardFile) ? '<span style="color:var(--ink-soft);font-size:12px;">-</span>' : ''}
-        </div>
-      </td>
+      <td>-</td>
       <td>
         <div class="dateblock-cell">
           <span class="db-display">${esc(r.dateBlock || '-')}</span>
@@ -1253,13 +1247,6 @@ async function renderRecordData(){
   `;
   }).join('');
 
-  tbody.querySelectorAll('.file-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const files = jobFilesMap[btn.dataset.id] || {};
-      const file = btn.dataset.file === 'new' ? files.newProductFile : files.masterCardFile;
-      openFile(file);
-    });
-  });
 
   tbody.querySelectorAll('.pencil-btn').forEach(btn => {
     btn.addEventListener('click', () => {
