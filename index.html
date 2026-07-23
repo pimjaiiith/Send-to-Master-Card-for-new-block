@@ -1226,7 +1226,6 @@ async function renderRecordData(){
       <td>${esc(r.customerName || '-')}</td>
       <td>${esc(r.productCode)}</td>
       <td>${esc(r.personInCharge || '-')}</td>
-      <td>-</td>
       <td>
         <div class="dateblock-cell">
           <span class="db-display">${esc(r.dateBlock || '-')}</span>
@@ -1286,8 +1285,6 @@ document.getElementById('btn-export-excel').addEventListener('click', async () =
       'Customer': r.customerName || '-',
       'Product Code': r.productCode,
       'Person in chart': r.personInCharge || '-',
-      'New Product File': files.newProductFile ? files.newProductFile.name : '-',
-      'Master Card File': files.masterCardFile ? files.masterCardFile.name : '-',
       'Date Block': r.dateBlock || '-',
       'Plate Date': r.plateDate || '-'
     };
@@ -1323,8 +1320,6 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
       const files = jobFilesMap[r.id] || {};
       return [
         idx+1, fmtDateTime(r.sentDate), r.customerName || '-', r.productCode, r.personInCharge || '-',
-        files.newProductFile ? files.newProductFile.name : '-',
-        files.masterCardFile ? files.masterCardFile.name : '-',
         r.dateBlock || '-', r.plateDate || '-'
       ];
     }),
