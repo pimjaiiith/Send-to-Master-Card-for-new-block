@@ -115,6 +115,50 @@
   }
   .who-footer{margin-top:28px;}
 
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:30px;font-size:13px;
+    font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,0.25);opacity:0;pointer-events:none;
+    transition:opacity 0.25s ease, transform 0.25s ease;z-index:1000;max-width:86%;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(43,33,24,0.45);
+    display:none;align-items:center;justify-content:center;z-index:999;padding:20px;
+  }
+  .modal-overlay.active{display:flex;}
+  .modal-box{
+    background:#fff;border-radius:20px;padding:28px 24px;max-width:320px;width:100%;
+    text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.2);
+  }
+  .modal-box h3{margin:0 0 6px;font-size:19px;font-weight:800;color:var(--ink);}
+  .modal-sub{margin:0 0 18px;font-size:13px;color:var(--ink-soft);}
+  .pin-input{
+    width:100%;box-sizing:border-box;text-align:center;font-size:26px;letter-spacing:14px;
+    padding:12px 10px 12px 24px;border:1.5px solid var(--card-border);border-radius:12px;
+    font-family:inherit;color:var(--ink);
+  }
+  .pin-input:focus{outline:2px solid var(--orange);outline-offset:1px;}
+  .pin-input.shake{animation:pinshake 0.35s;}
+  @keyframes pinshake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-8px);}
+    40%{transform:translateX(8px);}
+    60%{transform:translateX(-6px);}
+    80%{transform:translateX(6px);}
+  }
+  .modal-msg{min-height:18px;font-size:12.5px;color:var(--danger);margin-top:10px;}
+  .modal-actions{display:flex;gap:10px;margin-top:14px;}
+  .modal-btn{
+    flex:1;appearance:none;border:none;border-radius:30px;padding:12px 14px;
+    font-weight:800;font-size:13.5px;cursor:pointer;text-transform:uppercase;letter-spacing:0.04em;
+    font-family:inherit;
+  }
+  .modal-btn-cancel{background:#F4EEDF;color:var(--ink-soft);}
+  .modal-btn-ok{background:var(--orange);color:#fff;}
+  .modal-btn-ok:hover{background:var(--orange-deep);}
+
   .planning{min-height:calc(100vh - 88px);}
   .planning h2{font-size:26px;font-weight:800;margin:0 0 24px;}
   .field{margin-bottom:18px;}
@@ -353,6 +397,19 @@
 <body>
 
 <div class="app">
+
+  <div class="modal-overlay" id="pin-modal">
+    <div class="modal-box">
+      <h3>กรอกรหัสผ่าน</h3>
+      <p class="modal-sub">กรุณาใส่รหัส 4 หลักเพื่อเข้าหน้า Planning</p>
+      <input type="password" inputmode="numeric" maxlength="4" id="pin-input" class="pin-input" placeholder="••••" autocomplete="off">
+      <div class="modal-msg" id="pin-msg"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" id="pin-cancel">ยกเลิก</button>
+        <button type="button" class="modal-btn modal-btn-ok" id="pin-ok">ยืนยัน</button>
+      </div>
+    </div>
+  </div>
 
   <div class="view active splash" id="view-splash">
     <div class="splash-top">
@@ -764,7 +821,7 @@ document.querySelectorAll('.role-card').forEach(card => {
 
 document.getElementById('btn-continue').addEventListener('click', () => {
   if(selectedRole === 'planning'){
-    goTo('who','planning');
+    openPinModal();
   } else if(selectedRole === 'artwork-diary'){
     goTo('who','diary');
   } else if(selectedRole === 'artwork'){
@@ -774,8 +831,149 @@ document.getElementById('btn-continue').addEventListener('click', () => {
   }
 });
 
+// ---------- PIN protection for Planning ----------
+const PLANNING_PIN = '1234';
+const pinModal = document.getElementById('pin-modal');
+const pinInput = document.getElementById('pin-input');
+const pinMsg = document.getElementById('pin-msg');
+const pinOkBtn = document.getElementById('pin-ok');
+const pinCancelBtn = document.getElementById('pin-cancel');
+
+function openPinModal(){
+  pinInput.value = '';
+  pinMsg.textContent = '';
+  pinInput.classList.remove('shake');
+  pinModal.classList.add('active');
+  setTimeout(() => pinInput.focus(), 50);
+}
+function closePinModal(){
+  pinModal.classList.remove('active');
+}
+function checkPin(){
+  if(pinInput.value === PLANNING_PIN){
+    closePinModal();
+    goTo('who','planning');
+  } else {
+    pinMsg.textContent = 'รหัสไม่ถูกต้อง กรุณาลองใหม่';
+    pinInput.value = '';
+    pinInput.classList.remove('shake');
+    void pinInput.offsetWidth; // reflow เพื่อให้ animation เล่นใหม่ได้ทุกครั้ง
+    pinInput.classList.add('shake');
+    pinInput.focus();
+  }
+}
+pinOkBtn.addEventListener('click', checkPin);
+pinCancelBtn.addEventListener('click', closePinModal);
+pinInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') checkPin();
+});
+pinInput.addEventListener('input', () => {
+  pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 4);
+});
+pinModal.addEventListener('click', (e) => {
+  if(e.target === pinModal) closePinModal();
+});
+
 let selectedPerson = null;
 const TEAM_INFO = { Au:'Nisara', Aum:'Watchreewan', Good:'Pattaradet', Jin:'Narin', Film:'Rachapol', Pueng:'Nongnuch' };
+
+// ---------- Toast แจ้งสถานะแบบลอยด้านล่างจอ ----------
+let toastTimer = null;
+function showToast(msg){
+  let toastEl = document.getElementById('app-toast');
+  if(!toastEl){
+    toastEl = document.createElement('div');
+    toastEl.id = 'app-toast';
+    toastEl.className = 'toast';
+    document.body.appendChild(toastEl);
+  }
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3500);
+}
+
+// ---------- อีเมลแจ้งเตือนเมื่อแจกงาน (เชื่อมผ่าน Power Automate) ----------
+// วิธีตั้งค่าฝั่ง Power Automate (ทำครั้งเดียว):
+// 1) ไปที่ https://make.powerautomate.com > สร้าง "Instant cloud flow"
+// 2) เลือก trigger ชื่อ "When an HTTP request is received"
+// 3) ใส่ Request Body JSON Schema ตามนี้ (กด "Use sample payload to generate schema" แล้ววาง JSON ตัวอย่างด้านล่าง):
+//    {
+//      "customerName": "บริษัท ตัวอย่าง จำกัด",
+//      "productCode": "PC-1023",
+//      "sentDate": "23/07/2026 14:30",
+//      "appName": "Art-work Daily",
+//      "assignees": [
+//        { "name": "Au", "fullName": "Nisara", "email": "au@example.com" }
+//      ]
+//    }
+// 4) เพิ่ม action "Apply to each" โดยเลือก output เป็น assignees (array) จาก trigger
+// 5) ในลูป เพิ่ม action "Send an email (V2)" (Office 365 Outlook หรือ Outlook.com):
+//      To: item()?['email']
+//      Subject: มีงานใหม่มอบหมายให้คุณ - customerName (จาก dynamic content)
+//      Body: ใช้ fullName / customerName / productCode / sentDate / appName จาก dynamic content ประกอบข้อความ
+// 6) กด Save แล้วคัดลอก "HTTP POST URL" ที่ trigger สร้างให้ (คลิกที่ trigger เพื่อดู URL)
+// 7) นำ URL มาแทนที่ค่าด้านล่างนี้
+const POWER_AUTOMATE_WEBHOOK_URL = 'https://YOUR-TENANT.logic.azure.com/workflows/xxxxxxxx/triggers/manual/paths/invoke?...';
+
+const powerAutomateConfigured = POWER_AUTOMATE_WEBHOOK_URL.startsWith('http')
+  && !POWER_AUTOMATE_WEBHOOK_URL.includes('YOUR-TENANT');
+
+// แผนที่ชื่อย่อในทีม -> อีเมลจริง (แก้ไขให้ตรงกับอีเมลของแต่ละคน)
+const TEAM_EMAIL = {
+  Au:    'au@example.com',
+  Aum:   'aum@example.com',
+  Good:  'good@example.com',
+  Jin:   'jin@example.com',
+  Film:  'film@example.com',
+  Pueng: 'pueng@example.com'
+};
+
+// ส่งอีเมลแจ้งเตือนไปยังผู้รับงานที่ระบุ ผ่าน Power Automate (names = array ของชื่อย่อในทีม)
+async function notifyAssignees(job, names){
+  if(!names || !names.length) return;
+  if(!powerAutomateConfigured){
+    console.warn('ยังไม่ได้ตั้งค่า POWER_AUTOMATE_WEBHOOK_URL — ข้ามการส่งอีเมลแจ้งเตือน');
+    showToast('ยังไม่ได้ตั้งค่าอีเมลแจ้งเตือน (ดูคอมเมนต์ในโค้ด POWER_AUTOMATE_WEBHOOK_URL)');
+    return;
+  }
+
+  const assignees = names
+    .map(shortName => ({
+      name: shortName,
+      fullName: TEAM_INFO[shortName] || shortName,
+      email: TEAM_EMAIL[shortName] || null
+    }))
+    .filter(a => a.email);
+
+  if(!assignees.length){
+    console.warn('ไม่พบอีเมลของผู้รับงานที่เลือกใน TEAM_EMAIL — ข้ามการส่ง');
+    showToast('ไม่พบอีเมลของผู้รับงานที่เลือก กรุณาตรวจสอบ TEAM_EMAIL');
+    return;
+  }
+
+  showToast(`กำลังส่งอีเมลแจ้งเตือน ${assignees.length} คน...`);
+
+  try{
+    const res = await fetch(POWER_AUTOMATE_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerName: job.customerName || job.custCode,
+        productCode: job.productCode,
+        sentDate: fmtTime(job.createdAt),
+        appName: 'Art-work Daily',
+        assignees
+      })
+    });
+    if(!res.ok) throw new Error(`Power Automate ตอบกลับสถานะ ${res.status}`);
+    showToast(`ส่งอีเมลแจ้งเตือนสำเร็จ ${assignees.length} คน`);
+  }catch(err){
+    console.error('เรียก Power Automate ไม่สำเร็จ:', err);
+    showToast('ส่งอีเมลแจ้งเตือนไม่สำเร็จ — ดูรายละเอียดใน console');
+  }
+}
+
 document.querySelectorAll('.team-block').forEach(block => {
   block.addEventListener('click', () => {
     selectedPerson = block.dataset.person;
@@ -1136,8 +1334,19 @@ async function renderDiary(){
       const pillsBox = document.getElementById('pills-' + id);
       const selectedNames = Array.from(pillsBox.querySelectorAll('.assign-pill.selected')).map(p => p.dataset.name);
       const nowIso = selectedNames.length ? new Date().toISOString() : null;
+
+      const job = dayJobs.find(j => j.id === id);
+      const previousNames = (job && job.assignedTo) || [];
+      // แจ้งเตือนเฉพาะคนที่เพิ่งถูกเลือกเพิ่มเข้ามาใหม่ ป้องกันการส่งอีเมลซ้ำให้คนที่ถูกมอบงานอยู่แล้ว
+      const newlyAssigned = selectedNames.filter(name => !previousNames.includes(name));
+
       await updateJobAssignment(id, selectedNames, nowIso);
       await updateRecordPerson(id, selectedNames.join(', '));
+
+      if(newlyAssigned.length && job){
+        notifyAssignees(job, newlyAssigned).catch(err => console.error('notifyAssignees error:', err));
+      }
+
       renderDiary();
     });
   });
