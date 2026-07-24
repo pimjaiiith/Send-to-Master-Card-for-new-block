@@ -953,6 +953,7 @@ function openPrefilledForm(job, assignees){
   const names = assignees.map(a => a.fullName).join(', ');
   const emails = assignees.map(a => a.email).join(', ');
   const params = new URLSearchParams();
+  params.set('id', MS_FORMS_ID);
   params.set(MS_FORMS_PARAMS.customerName, job.customerName || job.custCode || '');
   params.set(MS_FORMS_PARAMS.productCode, job.productCode || '');
   params.set(MS_FORMS_PARAMS.sentDate, fmtTime(job.createdAt));
