@@ -911,13 +911,14 @@ function showToast(msg){
 //      https://forms.office.com/r/abCDefGHij?r75f1a2b3=VALUE1&r88c4d5e6=VALUE2&r91a2b3c4=VALUE3&r44f5g6h7=VALUE4&r22i3j4k5=VALUE5
 //    ให้จด "ชื่อ parameter" (เช่น r75f1a2b3) ที่อยู่หน้า = ของแต่ละคำถามไว้ตามลำดับที่กรอก (1=CustomerName, 2=ProductCode, 3=SentDate, 4=AssigneeNames, 5=AssigneeEmails)
 // 7) นำ Form ID (ส่วนหลัง /r/ ก่อนเครื่องหมาย ?) และชื่อ parameter ทั้ง 5 มาแทนที่ค่าด้านล่างนี้ในโค้ด
-const MS_FORMS_BASE_URL = 'https://forms.office.com/r/YOUR_FORM_ID'; // แทนที่ YOUR_FORM_ID ด้วย Form ID จริง
+const MS_FORMS_BASE_URL = 'https://forms.cloud.microsoft/Pages/ResponsePage.aspx';
+const MS_FORMS_ID = 'Dr-4XZKF0E6CsqbU13kz1MsGomgIcz9NmULqnTNm4qtUOUlZR0pUV0VIRkkyNkRPRUQ5STBVOFlCNy4u';
 const MS_FORMS_PARAMS = {
-  customerName:  'rXXXXXXXX1', // แทนที่ด้วยชื่อ parameter ของคำถาม CustomerName
-  productCode:   'rXXXXXXXX2', // แทนที่ด้วยชื่อ parameter ของคำถาม ProductCode
-  sentDate:      'rXXXXXXXX3', // แทนที่ด้วยชื่อ parameter ของคำถาม SentDate
-  assigneeNames: 'rXXXXXXXX4', // แทนที่ด้วยชื่อ parameter ของคำถาม AssigneeNames
-  assigneeEmails:'rXXXXXXXX5'  // แทนที่ด้วยชื่อ parameter ของคำถาม AssigneeEmails
+  customerName:   'r4105ccacd7c042979f9a55b2eedb9387',
+  productCode:    'r3ec3780eeb464a73ae44bdf4ef84d227',
+  sentDate:       'r17ce9036e3604b8fbcdde5eea91b335c',
+  assigneeNames:  'r8f39c14dbce04ce7a22df30b1fec1880',
+  assigneeEmails: 'r035d6efcabda4901b15066bfbcadf6c3'
 };
 
 // ===== ฝั่ง Power Automate (ทำครั้งเดียว) =====
@@ -938,12 +939,12 @@ const msFormsConfigured = !MS_FORMS_BASE_URL.includes('YOUR_FORM_ID')
 
 // แผนที่ชื่อย่อในทีม -> อีเมลจริง (แก้ไขให้ตรงกับอีเมลของแต่ละคน)
 const TEAM_EMAIL = {
-  Au:    'au@example.com',
-  Aum:   'aum@example.com',
-  Good:  'good@example.com',
-  Jin:   'jin@example.com',
-  Film:  'film@example.com',
-  Pueng: 'pueng@example.com'
+  Au:    'nisarap@scg.com',
+  Aum:   'washarep@scg.com',
+  Good:  'pattarwo@scg.com',
+  Jin:   'narinpha@scg.com',
+  Film:  'rachapso@scg.com',
+  Pueng: 'nongnuha@scg.com'
 };
 
 // เปิดฟอร์มที่กรอกข้อมูลไว้ล่วงหน้าในแท็บใหม่ 1 แท็บ (รวมผู้รับงานทุกคนไว้ในฟอร์มเดียว)
