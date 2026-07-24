@@ -950,16 +950,22 @@ const TEAM_EMAIL = {
 // เปิดฟอร์มที่กรอกข้อมูลไว้ล่วงหน้าในแท็บใหม่ 1 แท็บ (รวมผู้รับงานทุกคนไว้ในฟอร์มเดียว)
 // ผู้ใช้แค่ตรวจสอบข้อมูลที่กรอกไว้ให้แล้วกด Submit อีกครั้งเดียวจบ — Power Automate จะแยกส่งอีเมลให้แต่ละคนเอง
 function openPrefilledForm(job, assignees){
-  const names = assignees.map(a => a.fullName).join(', ');
-  const emails = assignees.map(a => a.email).join(', ');
-  const params = new URLSearchParams();
-  params.set('id', MS_FORMS_ID);
-  params.set(MS_FORMS_PARAMS.customerName, job.customerName || job.custCode || '');
-  params.set(MS_FORMS_PARAMS.productCode, job.productCode || '');
-  params.set(MS_FORMS_PARAMS.sentDate, fmtTime(job.createdAt));
-  params.set(MS_FORMS_PARAMS.assigneeNames, names);
-  params.set(MS_FORMS_PARAMS.assigneeEmails, emails);
-  window.open(`${MS_FORMS_BASE_URL}?${params.toString()}`, '_blank');
+  const names = assignees.map(a => a.fullName).join(',');
+  const emails = assignees.map(a => a.email).join(',');
+  const values = {
+    id: MS_FORMS_ID,
+    [MS_FORMS_PARAMS.customerName]: job.customerName || job.custCode || '',
+    [MS_FORMS_PARAMS.productCode]: job.productCode || '',
+    [MS_FORMS_PARAMS.sentDate]: fmtTime(job.createdAt),
+    [MS_FORMS_PARAMS.assigneeNames]: names,
+    [MS_FORMS_PARAMS.assigneeEmails]: emails
+  };
+  // ใช้ encodeURIComponent เอง (เข้ารหัสช่องว่างเป็น %20) แทน URLSearchParams
+  // (URLSearchParams เข้ารหัสช่องว่างเป็น + ซึ่ง Microsoft Forms ไม่แปลงกลับให้ ทำให้ข้อมูลเพี้ยน)
+  const queryString = Object.entries(values)
+    .map(([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(val)}`)
+    .join('&');
+  window.open(`${MS_FORMS_BASE_URL}?${queryString}`, '_blank');
 }
 
 // เรียกเปิดฟอร์มแจ้งเตือนสำหรับผู้ที่เพิ่งถูกมอบหมายงานใหม่ (names = array ของชื่อย่อในทีม)
