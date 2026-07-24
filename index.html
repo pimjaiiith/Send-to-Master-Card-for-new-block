@@ -893,31 +893,48 @@ function showToast(msg){
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3500);
 }
 
-// ---------- อีเมลแจ้งเตือนเมื่อแจกงาน (เชื่อมผ่าน Power Automate) ----------
-// วิธีตั้งค่าฝั่ง Power Automate (ทำครั้งเดียว):
-// 1) ไปที่ https://make.powerautomate.com > สร้าง "Instant cloud flow"
-// 2) เลือก trigger ชื่อ "When an HTTP request is received"
-// 3) ใส่ Request Body JSON Schema ตามนี้ (กด "Use sample payload to generate schema" แล้ววาง JSON ตัวอย่างด้านล่าง):
-//    {
-//      "customerName": "บริษัท ตัวอย่าง จำกัด",
-//      "productCode": "PC-1023",
-//      "sentDate": "23/07/2026 14:30",
-//      "appName": "Art-work Daily",
-//      "assignees": [
-//        { "name": "Au", "fullName": "Nisara", "email": "au@example.com" }
-//      ]
-//    }
-// 4) เพิ่ม action "Apply to each" โดยเลือก output เป็น assignees (array) จาก trigger
-// 5) ในลูป เพิ่ม action "Send an email (V2)" (Office 365 Outlook หรือ Outlook.com):
-//      To: item()?['email']
-//      Subject: มีงานใหม่มอบหมายให้คุณ - customerName (จาก dynamic content)
-//      Body: ใช้ fullName / customerName / productCode / sentDate / appName จาก dynamic content ประกอบข้อความ
-// 6) กด Save แล้วคัดลอก "HTTP POST URL" ที่ trigger สร้างให้ (คลิกที่ trigger เพื่อดู URL)
-// 7) นำ URL มาแทนที่ค่าด้านล่างนี้
-const POWER_AUTOMATE_WEBHOOK_URL = 'https://YOUR-TENANT.logic.azure.com/workflows/xxxxxxxx/triggers/manual/paths/invoke?...';
+// ---------- อีเมลแจ้งเตือนเมื่อแจกงาน (เชื่อมผ่าน Microsoft Forms + Power Automate) ----------
+// วิธีนี้ไม่ต้องใช้ Power Automate Premium และไม่ต้องมี Azure AD App Registration
+//
+// ===== ฝั่ง Microsoft Forms (ทำครั้งเดียว) =====
+// 1) ไปที่ https://forms.office.com > New Form ตั้งชื่อ เช่น "Job Assignment Notification"
+// 2) เพิ่มคำถามแบบ Text (short answer) ทั้งหมด 5 ข้อ เรียงตามนี้:
+//      - CustomerName
+//      - ProductCode
+//      - SentDate
+//      - AssigneeNames    (จะรับค่าเป็นรายชื่อคั่นด้วยจุลภาค เช่น "Nisara, Narin")
+//      - AssigneeEmails   (จะรับค่าเป็นอีเมลคั่นด้วยจุลภาค เช่น "au@example.com, jin@example.com")
+// 3) กด Preview มุมขวาบน ตอบคำถามทั้ง 5 ข้อด้วยค่าอะไรก็ได้ แล้วกด Submit 1 ครั้ง (เพื่อให้ระบบมี response ตัวอย่าง)
+// 4) กลับมาหน้าออกแบบฟอร์ม กด "..." (More form settings) มุมขวาบน เลือก "Get pre-filled link"
+// 5) กรอกค่าอะไรก็ได้ลงในทั้ง 5 ช่องตามลำดับด้านบน แล้วกด "Get link"
+// 6) จะได้ลิงก์ประมาณนี้ (ตัวอย่าง):
+//      https://forms.office.com/r/abCDefGHij?r75f1a2b3=VALUE1&r88c4d5e6=VALUE2&r91a2b3c4=VALUE3&r44f5g6h7=VALUE4&r22i3j4k5=VALUE5
+//    ให้จด "ชื่อ parameter" (เช่น r75f1a2b3) ที่อยู่หน้า = ของแต่ละคำถามไว้ตามลำดับที่กรอก (1=CustomerName, 2=ProductCode, 3=SentDate, 4=AssigneeNames, 5=AssigneeEmails)
+// 7) นำ Form ID (ส่วนหลัง /r/ ก่อนเครื่องหมาย ?) และชื่อ parameter ทั้ง 5 มาแทนที่ค่าด้านล่างนี้ในโค้ด
+const MS_FORMS_BASE_URL = 'https://forms.office.com/r/YOUR_FORM_ID'; // แทนที่ YOUR_FORM_ID ด้วย Form ID จริง
+const MS_FORMS_PARAMS = {
+  customerName:  'rXXXXXXXX1', // แทนที่ด้วยชื่อ parameter ของคำถาม CustomerName
+  productCode:   'rXXXXXXXX2', // แทนที่ด้วยชื่อ parameter ของคำถาม ProductCode
+  sentDate:      'rXXXXXXXX3', // แทนที่ด้วยชื่อ parameter ของคำถาม SentDate
+  assigneeNames: 'rXXXXXXXX4', // แทนที่ด้วยชื่อ parameter ของคำถาม AssigneeNames
+  assigneeEmails:'rXXXXXXXX5'  // แทนที่ด้วยชื่อ parameter ของคำถาม AssigneeEmails
+};
 
-const powerAutomateConfigured = POWER_AUTOMATE_WEBHOOK_URL.startsWith('http')
-  && !POWER_AUTOMATE_WEBHOOK_URL.includes('YOUR-TENANT');
+// ===== ฝั่ง Power Automate (ทำครั้งเดียว) =====
+// 1) สร้าง Instant cloud flow ใหม่ trigger: "When a new response is submitted" (connector: Forms) เลือกฟอร์มที่สร้างไว้
+// 2) เพิ่ม action "Get response details" (Forms) — Response Id: เลือก dynamic content "Response Id" จาก trigger
+// 3) เพิ่ม action "Apply to each" — ในช่อง Input ใส่ expression:
+//      range(0, length(split(body('Get_response_details')?['AssigneeEmails'], ',')))
+// 4) ในลูป เพิ่ม action "Send an email (V2)" (Office 365 Outlook):
+//      To:      trim(split(body('Get_response_details')?['AssigneeEmails'], ',')[items('Apply_to_each')])
+//      Subject: มีงานใหม่มอบหมายให้คุณ - (ต่อด้วย dynamic content CustomerName)
+//      Body:    ใช้ trim(split(body('Get_response_details')?['AssigneeNames'], ',')[items('Apply_to_each')])
+//               ประกอบกับ CustomerName / ProductCode / SentDate จาก dynamic content
+//    (พิมพ์ expression ด้านบนในช่อง fx ของ Power Automate ได้เลย ไม่ต้องเว้นวรรคก่อนหลัง)
+// 5) กด Save เป็นอันเสร็จ ไม่ต้องมี URL ใดๆ มาใส่ในโค้ดฝั่งนี้อีก เพราะ trigger คือฟอร์มที่ตั้งไว้แล้ว
+
+const msFormsConfigured = !MS_FORMS_BASE_URL.includes('YOUR_FORM_ID')
+  && !Object.values(MS_FORMS_PARAMS).some(v => v.includes('XXXXXXXX'));
 
 // แผนที่ชื่อย่อในทีม -> อีเมลจริง (แก้ไขให้ตรงกับอีเมลของแต่ละคน)
 const TEAM_EMAIL = {
@@ -929,49 +946,41 @@ const TEAM_EMAIL = {
   Pueng: 'pueng@example.com'
 };
 
-// ส่งอีเมลแจ้งเตือนไปยังผู้รับงานที่ระบุ ผ่าน Power Automate (names = array ของชื่อย่อในทีม)
-async function notifyAssignees(job, names){
+// เปิดฟอร์มที่กรอกข้อมูลไว้ล่วงหน้าในแท็บใหม่ 1 แท็บ (รวมผู้รับงานทุกคนไว้ในฟอร์มเดียว)
+// ผู้ใช้แค่ตรวจสอบข้อมูลที่กรอกไว้ให้แล้วกด Submit อีกครั้งเดียวจบ — Power Automate จะแยกส่งอีเมลให้แต่ละคนเอง
+function openPrefilledForm(job, assignees){
+  const names = assignees.map(a => a.fullName).join(', ');
+  const emails = assignees.map(a => a.email).join(', ');
+  const params = new URLSearchParams();
+  params.set(MS_FORMS_PARAMS.customerName, job.customerName || job.custCode || '');
+  params.set(MS_FORMS_PARAMS.productCode, job.productCode || '');
+  params.set(MS_FORMS_PARAMS.sentDate, fmtTime(job.createdAt));
+  params.set(MS_FORMS_PARAMS.assigneeNames, names);
+  params.set(MS_FORMS_PARAMS.assigneeEmails, emails);
+  window.open(`${MS_FORMS_BASE_URL}?${params.toString()}`, '_blank');
+}
+
+// เรียกเปิดฟอร์มแจ้งเตือนสำหรับผู้ที่เพิ่งถูกมอบหมายงานใหม่ (names = array ของชื่อย่อในทีม)
+function notifyAssignees(job, names){
   if(!names || !names.length) return;
-  if(!powerAutomateConfigured){
-    console.warn('ยังไม่ได้ตั้งค่า POWER_AUTOMATE_WEBHOOK_URL — ข้ามการส่งอีเมลแจ้งเตือน');
-    showToast('ยังไม่ได้ตั้งค่าอีเมลแจ้งเตือน (ดูคอมเมนต์ในโค้ด POWER_AUTOMATE_WEBHOOK_URL)');
+  if(!msFormsConfigured){
+    console.warn('ยังไม่ได้ตั้งค่า MS_FORMS_BASE_URL / MS_FORMS_PARAMS — ข้ามการแจ้งเตือน');
+    showToast('ยังไม่ได้ตั้งค่าแบบฟอร์มแจ้งเตือน (ดูคอมเมนต์ในโค้ด MS_FORMS_...)');
     return;
   }
 
   const assignees = names
-    .map(shortName => ({
-      name: shortName,
-      fullName: TEAM_INFO[shortName] || shortName,
-      email: TEAM_EMAIL[shortName] || null
-    }))
+    .map(shortName => ({ fullName: TEAM_INFO[shortName] || shortName, email: TEAM_EMAIL[shortName] || null }))
     .filter(a => a.email);
 
   if(!assignees.length){
-    console.warn('ไม่พบอีเมลของผู้รับงานที่เลือกใน TEAM_EMAIL — ข้ามการส่ง');
+    console.warn('ไม่พบอีเมลของผู้รับงานที่เลือกใน TEAM_EMAIL — ข้ามการแจ้งเตือน');
     showToast('ไม่พบอีเมลของผู้รับงานที่เลือก กรุณาตรวจสอบ TEAM_EMAIL');
     return;
   }
 
-  showToast(`กำลังส่งอีเมลแจ้งเตือน ${assignees.length} คน...`);
-
-  try{
-    const res = await fetch(POWER_AUTOMATE_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customerName: job.customerName || job.custCode,
-        productCode: job.productCode,
-        sentDate: fmtTime(job.createdAt),
-        appName: 'Art-work Daily',
-        assignees
-      })
-    });
-    if(!res.ok) throw new Error(`Power Automate ตอบกลับสถานะ ${res.status}`);
-    showToast(`ส่งอีเมลแจ้งเตือนสำเร็จ ${assignees.length} คน`);
-  }catch(err){
-    console.error('เรียก Power Automate ไม่สำเร็จ:', err);
-    showToast('ส่งอีเมลแจ้งเตือนไม่สำเร็จ — ดูรายละเอียดใน console');
-  }
+  showToast(`เปิดฟอร์มแจ้งเตือนแล้ว — กรุณาตรวจสอบข้อมูลแล้วกด Submit ในแท็บใหม่`);
+  openPrefilledForm(job, assignees);
 }
 
 document.querySelectorAll('.team-block').forEach(block => {
@@ -1340,12 +1349,14 @@ async function renderDiary(){
       // แจ้งเตือนเฉพาะคนที่เพิ่งถูกเลือกเพิ่มเข้ามาใหม่ ป้องกันการส่งอีเมลซ้ำให้คนที่ถูกมอบงานอยู่แล้ว
       const newlyAssigned = selectedNames.filter(name => !previousNames.includes(name));
 
+      // เรียกก่อน await อื่นๆ เพื่อให้ window.open() ยังอยู่ใน user-gesture เดียวกับการคลิก
+      // ป้องกันไม่ให้เบราว์เซอร์บล็อก popup
+      if(newlyAssigned.length && job){
+        notifyAssignees(job, newlyAssigned);
+      }
+
       await updateJobAssignment(id, selectedNames, nowIso);
       await updateRecordPerson(id, selectedNames.join(', '));
-
-      if(newlyAssigned.length && job){
-        notifyAssignees(job, newlyAssigned).catch(err => console.error('notifyAssignees error:', err));
-      }
 
       renderDiary();
     });
