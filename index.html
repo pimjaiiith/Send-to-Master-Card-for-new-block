@@ -514,9 +514,8 @@
 
     <div class="field">
       <label>Cust-Name <span class="req">*</span></label>
-      <select id="p-custcode">
-        <option value="">เลือก Cust-Name</option>
-      </select>
+      <input type="text" id="p-custcode" list="p-custcode-list" placeholder="พิมพ์หรือเลือก Cust-Name" autocomplete="off">
+      <datalist id="p-custcode-list"></datalist>
     </div>
 
     <div class="field">
@@ -1097,11 +1096,8 @@ async function deleteCustomer(id){
   if(error) console.error('deleteCustomer error:', error);
 }
 function renderCustDropdown(){
-  const sel = document.getElementById('p-custcode');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">เลือก Cust-Name</option>' +
-    custMaster.map(c => `<option value="${esc(c.custCode)}">${esc(c.custCode)}</option>`).join('');
-  if(custMaster.some(c => c.custCode === current)) sel.value = current;
+  const dl = document.getElementById('p-custcode-list');
+  dl.innerHTML = custMaster.map(c => `<option value="${esc(c.custCode)}"></option>`).join('');
 }
 function renderCustTable(){
   const tbody = document.getElementById('cust-tbody');
@@ -1167,7 +1163,7 @@ document.getElementById('btn-cust-add').addEventListener('click', async () => {
   renderCustTable();
   renderCustDropdown();
 });
-document.getElementById('p-custcode').addEventListener('change', (e) => {
+document.getElementById('p-custcode').addEventListener('input', (e) => {
   const item = custMaster.find(c => c.custCode === e.target.value);
   document.getElementById('p-custname').value = item ? item.customerName : '';
 });
@@ -1248,9 +1244,14 @@ document.getElementById('btn-submit-planning').addEventListener('click', async (
   const msg = document.getElementById('planning-msg');
   const btn = document.getElementById('btn-submit-planning');
 
-  if(!custCode || !productCode){
+if(!custCode || !productCode){
     msg.className = 'msg err';
     msg.textContent = 'กรอก Cust-Name และ Product Code ให้ครบ';
+    return;
+  }
+  if(!custMaster.some(c => c.custCode === custCode)){
+    msg.className = 'msg err';
+    msg.textContent = 'ไม่พบ Cust-Name นี้ในระบบ กรุณาเลือกจากรายการ หรือกด "+ เพิ่ม Cust Name"';
     return;
   }
   const MAXSIZE = 20 * 1024 * 1024;
