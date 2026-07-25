@@ -33,20 +33,22 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
     color:var(--ink);
   }
-  .app{
-    max-width:520px;
+ .app{
+    width:100%;
+    max-width:1600px;
     margin:0 auto;
     min-height:100vh;
     position:relative;
     overflow:hidden;
-  }
+    padding:0 40px;
+}
 
-  .view{
+.view{
     position:absolute;
     inset:0;
     display:flex;
     flex-direction:column;
-    padding:48px 28px 40px;
+    padding:48px 40px 40px;
     opacity:0;
     transform:translateX(28px);
     pointer-events:none;
@@ -356,7 +358,7 @@
   .filter-row input[type=text]{
     border:1.5px solid var(--card-border);border-radius:10px;padding:8px 12px;
     font-size:13px;font-family:inherit;background:#fff;color:var(--ink);
-    flex:1;min-width:160px;
+    flex:2;min-width:320px;
   }
   .filter-row button{
     appearance:none;border:1.5px solid var(--card-border);background:#fff;color:var(--ink-soft);
@@ -371,7 +373,12 @@
   .export-row .xlsx-btn:hover{background:#156038;}
   .export-row .pdf-btn{background:#c0392b;}
   .export-row .pdf-btn:hover{background:#a3301f;}
-  .record-table-wrap{border:1px solid var(--row-border);border-radius:12px;overflow-x:auto;}
+  .record-table-wrap{
+    width:100%;
+    border:1px solid var(--row-border);
+    border-radius:12px;
+    overflow-x:auto;
+}
   table.record-table{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap;}
   table.record-table th{
     text-align:left;background:var(--navy);color:#fff;font-weight:700;
