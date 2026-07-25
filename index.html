@@ -1404,18 +1404,20 @@ async function renderDiary(){
 
       const job = dayJobs.find(j => j.id === id);
       const previousNames = (job && job.assignedTo) || [];
-      // แจ้งเตือนเฉพาะคนที่เพิ่งถูกเลือกเพิ่มเข้ามาใหม่ ป้องกันการส่งอีเมลซ้ำให้คนที่ถูกมอบงานอยู่แล้ว
       const newlyAssigned = selectedNames.filter(name => !previousNames.includes(name));
 
-      // เรียกก่อน await อื่นๆ เพื่อให้ window.open() ยังอยู่ใน user-gesture เดียวกับการคลิก
-      // ป้องกันไม่ให้เบราว์เซอร์บล็อก popup
       if(newlyAssigned.length && job){
         notifyAssignees(job, newlyAssigned);
       }
 
       await updateJobAssignment(id, selectedNames, nowIso);
       await updateRecordPerson(id, selectedNames.join(', '));
-       listEl.querySelectorAll('.job-delete-btn').forEach(btn => {
+
+      renderDiary();
+    });
+  });
+
+  listEl.querySelectorAll('.job-delete-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id;
       askDeleteConfirm(async () => {
@@ -1423,10 +1425,6 @@ async function renderDiary(){
         await deleteRecord(id);
         renderDiary();
       });
-    });
-  });
-}
-      renderDiary();
     });
   });
 }
