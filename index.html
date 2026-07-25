@@ -295,6 +295,12 @@
     font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:20px;cursor:pointer;
   }
   .assign-confirm-btn:hover{background:var(--navy-deep);}
+  .job-delete-btn{
+    appearance:none;border:1.5px solid var(--danger);background:#fff;color:var(--danger);
+    font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:20px;cursor:pointer;
+    white-space:nowrap;
+  }
+  .job-delete-btn:hover{background:#FBEAE7;}
   .diary-empty{
     text-align:center;color:var(--ink-soft);font-size:13.5px;padding:50px 10px;
     background:#fff;border:1.5px solid var(--card-border);border-radius:18px;
@@ -346,6 +352,11 @@
   .filter-row input[type=date]{
     border:1.5px solid var(--card-border);border-radius:10px;padding:8px 12px;
     font-size:13px;font-family:inherit;background:#fff;color:var(--ink);
+  }
+  .filter-row input[type=text]{
+    border:1.5px solid var(--card-border);border-radius:10px;padding:8px 12px;
+    font-size:13px;font-family:inherit;background:#fff;color:var(--ink);
+    flex:1;min-width:160px;
   }
   .filter-row button{
     appearance:none;border:1.5px solid var(--card-border);background:#fff;color:var(--ink-soft);
@@ -407,6 +418,16 @@
       <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-cancel" id="pin-cancel">ยกเลิก</button>
         <button type="button" class="modal-btn modal-btn-ok" id="pin-ok">ยืนยัน</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="delete-confirm-modal">
+    <div class="modal-box">
+      <h3>ยืนยันการลบ</h3>
+      <p class="modal-sub">คุณต้องการลบงานใช่หรือไม่</p>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" id="delete-confirm-no">No</button>
+        <button type="button" class="modal-btn modal-btn-ok" id="delete-confirm-yes" style="background:var(--danger);">Yes</button>
       </div>
     </div>
   </div>
@@ -588,6 +609,7 @@
     <div class="subpanel active" id="subpanel-record">
       <div class="filter-row">
         <input type="date" id="record-date-filter">
+        <input type="text" id="record-search-product" placeholder="ค้นหา Product Code">
         <button id="btn-clear-record-filter">ล้างตัวกรอง (แสดงทั้งหมด)</button>
       </div>
       <div class="export-row">
@@ -738,6 +760,10 @@ async function deleteJob(id){
   const { error } = await sb.from('jobs').delete().eq('id', id);
   if(error) console.error('deleteJob error:', error);
 }
+  async function deleteRecord(id){
+  const { error } = await sb.from('records').delete().eq('id', id);
+  if(error) console.error('deleteRecord error:', error);
+}
 
 async function loadRecords(){
   const { data, error } = await sb.from('records').select('*').order('sent_date', { ascending: false });
@@ -849,6 +875,29 @@ function openPinModal(){
 function closePinModal(){
   pinModal.classList.remove('active');
 }
+  // ---------- Generic Yes/No confirmation modal (ใช้แทน confirm() ของเบราว์เซอร์) ----------
+const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+const deleteConfirmYesBtn = document.getElementById('delete-confirm-yes');
+const deleteConfirmNoBtn = document.getElementById('delete-confirm-no');
+let pendingDeleteAction = null;
+
+function askDeleteConfirm(onConfirm){
+  pendingDeleteAction = onConfirm;
+  deleteConfirmModal.classList.add('active');
+}
+function closeDeleteConfirm(){
+  deleteConfirmModal.classList.remove('active');
+  pendingDeleteAction = null;
+}
+deleteConfirmYesBtn.addEventListener('click', async () => {
+  const action = pendingDeleteAction;
+  closeDeleteConfirm();
+  if(action) await action();
+});
+deleteConfirmNoBtn.addEventListener('click', closeDeleteConfirm);
+deleteConfirmModal.addEventListener('click', (e) => {
+  if(e.target === deleteConfirmModal) closeDeleteConfirm();
+});
 function checkPin(){
   if(pinInput.value === PLANNING_PIN){
     closePinModal();
@@ -1309,10 +1358,11 @@ async function renderDiary(){
             ${j.newProductFile ? `<button class="file-chip" data-file="new" data-id="${j.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(j.newProductFile.name)}</button>` : ''}
             ${j.masterCardFile ? `<button class="file-chip" data-file="master" data-id="${j.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(j.masterCardFile.name)}</button>` : ''}
           </div>
-          <div class="job-assign-row">
+          <div class="job-assign-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             ${j.assignedTo && j.assignedTo.length
               ? `<button class="assigned-badge" data-id="${j.id}">มอบให้ ${esc(j.assignedTo.join(', '))} · เปลี่ยน</button>`
               : `<button class="assign-btn" data-id="${j.id}">แจกงาน</button>`}
+            <button class="job-delete-btn" data-id="${j.id}">ลบงาน</button>
             <div class="assign-pills" id="pills-${j.id}">
               ${TEAM.map(name => `<button class="assign-pill${(j.assignedTo||[]).includes(name) ? ' selected' : ''}" data-id="${j.id}" data-name="${name}">${name}</button>`).join('')}
               <button class="assign-confirm-btn" data-id="${j.id}">ยืนยันแจกงาน</button>
@@ -1365,7 +1415,17 @@ async function renderDiary(){
 
       await updateJobAssignment(id, selectedNames, nowIso);
       await updateRecordPerson(id, selectedNames.join(', '));
-
+       listEl.querySelectorAll('.job-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      askDeleteConfirm(async () => {
+        await deleteJob(id);
+        await deleteRecord(id);
+        renderDiary();
+      });
+    });
+  });
+}
       renderDiary();
     });
   });
@@ -1504,16 +1564,23 @@ document.querySelectorAll('.subtabs button').forEach(btn => {
 });
 
 document.getElementById('record-date-filter').addEventListener('change', renderRecordData);
+document.getElementById('record-search-product').addEventListener('input', renderRecordData);
 document.getElementById('btn-clear-record-filter').addEventListener('click', () => {
   document.getElementById('record-date-filter').value = '';
+  document.getElementById('record-search-product').value = '';
   renderRecordData();
 });
 
 async function renderRecordData(){
   const records = await loadRecords();
   const filterDate = document.getElementById('record-date-filter').value;
-  const rows = (filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records.slice())
-    .sort((a,b) => a.sentDate < b.sentDate ? 1 : -1);
+  const searchProduct = document.getElementById('record-search-product').value.trim().toLowerCase();
+
+  let rows = filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records.slice();
+  if(searchProduct){
+    rows = rows.filter(r => (r.productCode || '').toLowerCase().includes(searchProduct));
+  }
+  rows = rows.sort((a,b) => a.sentDate < b.sentDate ? 1 : -1);
 
   const tbody = document.getElementById('record-tbody');
   if(rows.length === 0){
@@ -1579,7 +1646,9 @@ document.getElementById('btn-export-excel').addEventListener('click', async () =
   const records = await loadRecords();
   const jobFilesMap = await loadJobFilesMap();
   const filterDate = document.getElementById('record-date-filter').value;
-  const rows = filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records;
+  const searchProduct = document.getElementById('record-search-product').value.trim().toLowerCase();
+  let rows = filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records;
+  if(searchProduct) rows = rows.filter(r => (r.productCode || '').toLowerCase().includes(searchProduct));
   const data = rows.map((r, idx) => {
     const files = jobFilesMap[r.id] || {};
     return {
