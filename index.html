@@ -870,6 +870,8 @@ document.getElementById('btn-continue').addEventListener('click', () => {
     goTo('who','diary');
   } else if(selectedRole === 'artwork'){
     goTo('who','artwork');
+  } else if(selectedRole === 'cs-tooling'){
+    goTo('who','record');
   } else {
     alert('หน้าสำหรับ ' + selectedRole + ' รอการออกแบบเพิ่มเติม');
   }
