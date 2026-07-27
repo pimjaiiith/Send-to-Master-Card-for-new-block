@@ -642,7 +642,7 @@
       <div class="record-table-wrap">
         <table class="record-table">
           <thead>
-            <tr><th>No.</th><th>Sent Date</th><th>Customer</th><th>Product Code</th><th>Person in chart</th><th>Block Date</th><th>Plate Date</th></tr>
+            <tr><th>No.</th><th>Sent Date</th><th>Received Date</th><th>Customer</th><th>Product Code</th><th>Person in chart</th><th>Block Date</th><th>Plate Date</th><th>Remark</th></tr>
           </thead>
           <tbody id="record-tbody"></tbody>
         </table>
@@ -792,8 +792,8 @@ async function loadRecords(){
   const { data, error } = await sb.from('records').select('*').order('sent_date', { ascending: false });
   if(error){ console.error('loadRecords error:', error); return []; }
   return data.map(r => ({
-    id: r.id, sentDate: r.sent_date, customerName: r.customer_name, productCode: r.product_code,
-    personInCharge: r.person_in_charge, dateBlock: r.date_block, plateDate: r.plate_date
+    id: r.id, sentDate: r.sent_date, receivedDate: r.received_date, customerName: r.customer_name, productCode: r.product_code,
+    personInCharge: r.person_in_charge, dateBlock: r.date_block, plateDate: r.plate_date, remark: r.remark
   }));
 }
 async function insertRecord(rec){
@@ -814,6 +814,14 @@ async function updateRecordDateBlock(id, dateBlock){
 async function updateRecordPlateDate(id, plateDate){
   const { error } = await sb.from('records').update({ plate_date: plateDate }).eq('id', id);
   if(error) console.error('updateRecordPlateDate error:', error);
+}
+  async function updateRecordReceived(id, receivedDate){
+  const { error } = await sb.from('records').update({ received_date: receivedDate }).eq('id', id);
+  if(error) console.error('updateRecordReceived error:', error);
+}
+async function updateRecordRemark(id, remark){
+  const { error } = await sb.from('records').update({ remark: remark || null }).eq('id', id);
+  if(error) console.error('updateRecordRemark error:', error);
 }
 async function loadJobFilesMap(){
   const { data, error } = await sb.from('jobs').select('id,new_product_file,master_card_file');
@@ -1587,9 +1595,10 @@ async function renderArtworkPersonal(){
     });
   });
 
-  listEl.querySelectorAll('.receive-btn').forEach(btn => {
+listEl.querySelectorAll('.receive-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       if(!confirm('ยืนยันว่ารับงานนี้แล้ว? รายการจะหายไปจากแอปทันที')) return;
+      await updateRecordReceived(btn.dataset.id, new Date().toISOString());
       await deleteJob(btn.dataset.id);
       renderArtworkPersonal();
     });
@@ -1637,9 +1646,11 @@ async function renderRecordData(){
   }
   rows = rows.sort((a,b) => a.sentDate < b.sentDate ? 1 : -1);
 
+  const REMARK_OPTIONS = ['Plate ร่วม', 'Block ร่วม', 'Plate ร่วม-Block ร่วม', 'งานเปลี่ยนแปลงบล็อคเดิม', 'งานเปลี่ยนแปลงเพลทเดิม'];
+
   const tbody = document.getElementById('record-tbody');
   if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8"><div class="cust-empty">ไม่พบข้อมูล</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="cust-empty">ไม่พบข้อมูล</div></td></tr>';
     return;
   }
   tbody.innerHTML = rows.map((r, idx) => {
@@ -1648,6 +1659,7 @@ async function renderRecordData(){
     <tr data-id="${r.id}">
       <td>${idx+1}</td>
       <td>${esc(fmtDateTime(r.sentDate))}</td>
+      <td>${r.receivedDate ? esc(fmtDateTime(r.receivedDate)) : '-'}</td>
       <td>${esc(r.customerName || '-')}</td>
       <td>${esc(r.productCode)}</td>
       <td>${esc(r.personInCharge || '-')}</td>
@@ -1667,6 +1679,14 @@ async function renderRecordData(){
           </button>
         </div>
       </td>
+      <td>
+        <div class="dateblock-cell">
+          <span class="rm-display">${esc(r.remark || '-')}</span>
+          <button class="pencil-btn" data-id="${r.id}" data-field="remark" title="แก้ไข Remark">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>
+          </button>
+        </div>
+      </td>
     </tr>
   `;
   }).join('');
@@ -1677,6 +1697,40 @@ async function renderRecordData(){
       const field = btn.dataset.field;
       const cell = btn.closest('.dateblock-cell');
       const rec = rows.find(r => r.id === btn.dataset.id);
+
+      if(field === 'remark'){
+        const current = rec && rec.remark ? rec.remark : '';
+        const isPreset = REMARK_OPTIONS.includes(current);
+        cell.innerHTML = `
+          <select class="dateblock-input remark-select">
+            <option value="">- ไม่ระบุ -</option>
+            ${REMARK_OPTIONS.map(o => `<option value="${esc(o)}" ${current === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+            <option value="__custom__" ${!isPreset && current ? 'selected' : ''}>อื่นๆ (พิมพ์เอง)...</option>
+          </select>
+          <input type="text" class="dateblock-input remark-custom-input" placeholder="พิมพ์ข้อความ..." value="${!isPreset && current ? esc(current) : ''}" style="display:${!isPreset && current ? 'inline-block' : 'none'};margin-left:6px;">
+        `;
+        const selectEl = cell.querySelector('.remark-select');
+        const customInput = cell.querySelector('.remark-custom-input');
+        selectEl.focus();
+
+        selectEl.addEventListener('change', async () => {
+          if(selectEl.value === '__custom__'){
+            customInput.style.display = 'inline-block';
+            customInput.focus();
+            return;
+          }
+          await updateRecordRemark(btn.dataset.id, selectEl.value);
+          renderRecordData();
+        });
+        const commitCustom = async () => {
+          await updateRecordRemark(btn.dataset.id, customInput.value.trim());
+          renderRecordData();
+        };
+        customInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') commitCustom(); });
+        customInput.addEventListener('blur', commitCustom);
+        return;
+      }
+
       const current = field === 'plate'
         ? (rec && rec.plateDate ? rec.plateDate : '')
         : (rec && rec.dateBlock ? rec.dateBlock : '');
@@ -1704,16 +1758,18 @@ document.getElementById('btn-export-excel').addEventListener('click', async () =
   const searchProduct = document.getElementById('record-search-product').value.trim().toLowerCase();
   let rows = filterDate ? records.filter(r => r.sentDate.slice(0,10) === filterDate) : records;
   if(searchProduct) rows = rows.filter(r => (r.productCode || '').toLowerCase().includes(searchProduct));
-  const data = rows.map((r, idx) => {
+const data = rows.map((r, idx) => {
     const files = jobFilesMap[r.id] || {};
     return {
       'No.': idx+1,
       'Sent Date': fmtDateTime(r.sentDate),
+      'Received Date': r.receivedDate ? fmtDateTime(r.receivedDate) : '-',
       'Customer': r.customerName || '-',
       'Product Code': r.productCode,
       'Person in chart': r.personInCharge || '-',
       'Date Block': r.dateBlock || '-',
-      'Plate Date': r.plateDate || '-'
+      'Plate Date': r.plateDate || '-',
+      'Remark': r.remark || '-'
     };
   });
   const ws = XLSX.utils.json_to_sheet(data);
@@ -1740,17 +1796,18 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
   doc.setFontSize(10);
   doc.text(filterDate ? `วันที่: ${filterDate}` : 'ทั้งหมด', 14, 22);
 
-  doc.autoTable({
+doc.autoTable({
     startY: 28,
-    head: [['No.', 'Sent Date', 'Customer', 'Product Code', 'Person in chart', 'Block Date', 'Plate Date']],
+    head: [['No.', 'Sent Date', 'Received Date', 'Customer', 'Product Code', 'Person in chart', 'Block Date', 'Plate Date', 'Remark']],
     body: rows.map((r, idx) => {
       const files = jobFilesMap[r.id] || {};
       return [
-        idx+1, fmtDateTime(r.sentDate), r.customerName || '-', r.productCode, r.personInCharge || '-',
-        r.dateBlock || '-', r.plateDate || '-'
+        idx+1, fmtDateTime(r.sentDate), r.receivedDate ? fmtDateTime(r.receivedDate) : '-',
+        r.customerName || '-', r.productCode, r.personInCharge || '-',
+        r.dateBlock || '-', r.plateDate || '-', r.remark || '-'
       ];
     }),
-    styles: { font: FONT, fontSize: 8 },
+    styles: { font: FONT, fontSize: 7.5 },
     headStyles: { font: FONT, fontStyle: 'bold', fillColor: [27,58,102] }
   });
 
