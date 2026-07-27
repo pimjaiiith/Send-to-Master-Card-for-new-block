@@ -284,6 +284,13 @@
     display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;
     color:var(--success);background:#E9F3E8;padding:9px 16px;border-radius:20px;cursor:pointer;border:none;
   }
+  .received-status-badge{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+    color:var(--orange-deep);background:#FFF3DF;padding:7px 14px;border-radius:20px;
+  }
+  .received-status-badge.all-done{
+    color:var(--success);background:#E9F3E8;
+  }
   .assign-pills{display:none;gap:8px;margin-top:10px;flex-wrap:wrap;}
   .assign-pills.open{display:flex;}
   .assign-pill{
@@ -761,7 +768,8 @@ async function loadPlanningJobs(){
   return data.map(j => ({
     id: j.id, custCode: j.cust_code, customerName: j.customer_name, productCode: j.product_code,
     newProductFile: j.new_product_file, masterCardFile: j.master_card_file,
-    createdAt: j.created_at, assignedTo: parseAssignedTo(j.assigned_to), assignedAt: j.assigned_at
+    createdAt: j.created_at, assignedTo: parseAssignedTo(j.assigned_to), assignedAt: j.assigned_at,
+    receivedBy: parseAssignedTo(j.received_by)
   }));
 }
 async function insertPlanningJob(job){
@@ -778,6 +786,12 @@ async function updateJobAssignment(id, assignedToArray, assignedAt){
     assigned_at: assignedAt
   }).eq('id', id);
   if(error) console.error('updateJobAssignment error:', error);
+}
+  async function updateJobReceivedBy(id, receivedByArray){
+  const { error } = await sb.from('jobs').update({
+    received_by: receivedByArray && receivedByArray.length ? JSON.stringify(receivedByArray) : null
+  }).eq('id', id);
+  if(error) console.error('updateJobReceivedBy error:', error);
 }
 async function deleteJob(id){
   const { error } = await sb.from('jobs').delete().eq('id', id);
@@ -1396,6 +1410,18 @@ async function openFile(file){
 const dateInput = document.getElementById('diary-date');
 dateInput.value = dateStr(new Date());
 dateInput.addEventListener('change', renderDiary);
+  
+  function renderReceivedStatusBadge(job){
+  const assigned = Array.isArray(job.assignedTo) ? job.assignedTo : [];
+  const received = Array.isArray(job.receivedBy) ? job.receivedBy : [];
+  if(!assigned.length || !received.length) return '';
+
+  const remaining = assigned.filter(name => !received.includes(name));
+  if(remaining.length === 0){
+    return `<span class="received-status-badge all-done">รับครบทุกคนแล้ว: ${esc(received.join(', '))}</span>`;
+  }
+  return `<span class="received-status-badge">รับแล้ว: ${esc(received.join(', '))} (รอ ${esc(remaining.join(', '))})</span>`;
+}
 
 async function renderDiary(){
   const listEl = document.getElementById('diary-list');
@@ -1423,10 +1449,11 @@ async function renderDiary(){
             ${j.newProductFile ? `<button class="file-chip" data-file="new" data-id="${j.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(j.newProductFile.name)}</button>` : ''}
             ${j.masterCardFile ? `<button class="file-chip" data-file="master" data-id="${j.id}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>${esc(j.masterCardFile.name)}</button>` : ''}
           </div>
-          <div class="job-assign-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+         <div class="job-assign-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             ${j.assignedTo && j.assignedTo.length
               ? `<button class="assigned-badge" data-id="${j.id}">มอบให้ ${esc(j.assignedTo.join(', '))} · เปลี่ยน</button>`
               : `<button class="assign-btn" data-id="${j.id}">แจกงาน</button>`}
+            ${renderReceivedStatusBadge(j)}
             <button class="job-delete-btn" data-id="${j.id}">ลบงาน</button>
             <div class="assign-pills" id="pills-${j.id}">
               ${TEAM.map(name => `<button class="assign-pill${(j.assignedTo||[]).includes(name) ? ' selected' : ''}" data-id="${j.id}" data-name="${name}">${name}</button>`).join('')}
@@ -1550,8 +1577,9 @@ async function renderArtworkPersonal(){
   listEl.innerHTML = '<div class="diary-empty">กำลังโหลด...</div>';
   const jobs = await loadPlanningJobs();
 
-  const myJobs = jobs
-    .filter(j => Array.isArray(j.assignedTo) && j.assignedTo.includes(selectedPerson))
+const myJobs = jobs
+    .filter(j => Array.isArray(j.assignedTo) && j.assignedTo.includes(selectedPerson)
+      && !(Array.isArray(j.receivedBy) && j.receivedBy.includes(selectedPerson)))
     .sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
 
   if(myJobs.length === 0){
@@ -1597,9 +1625,32 @@ async function renderArtworkPersonal(){
 
 listEl.querySelectorAll('.receive-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if(!confirm('ยืนยันว่ารับงานนี้แล้ว? รายการจะหายไปจากแอปทันที')) return;
-      await updateRecordReceived(btn.dataset.id, new Date().toISOString());
-      await deleteJob(btn.dataset.id);
+      const job = myJobs.find(j => j.id === btn.dataset.id);
+      if(!job) return;
+
+      const totalAssignees = (job.assignedTo || []).length;
+      const alreadyReceived = Array.isArray(job.receivedBy) ? job.receivedBy.slice() : [];
+
+      if(!confirm(`ยืนยันว่า ${selectedPerson} รับงานนี้แล้ว?`)) return;
+
+      if(!alreadyReceived.includes(selectedPerson)){
+        alreadyReceived.push(selectedPerson);
+      }
+
+      const isLastPerson = alreadyReceived.length >= totalAssignees;
+
+      if(isLastPerson){
+        // ทุกคนที่ถูกมอบหมายกดยืนยันครบแล้ว -> ปิดงานจริง
+        await updateRecordReceived(job.id, new Date().toISOString());
+        await deleteJob(job.id);
+        showToast('ทุกคนยืนยันรับงานครบแล้ว งานนี้ถูกปิดจบ');
+      } else {
+        // ยังมีคนอื่นในทีมที่ยังไม่ได้กด -> เก็บไว้ในคิวกลาง แค่ซ่อนจากหน้าตัวเอง
+        await updateJobReceivedBy(job.id, alreadyReceived);
+        const remaining = (job.assignedTo || []).filter(n => !alreadyReceived.includes(n));
+        showToast(`บันทึกแล้ว รองาน: ${remaining.join(', ')}`);
+      }
+
       renderArtworkPersonal();
     });
   });
