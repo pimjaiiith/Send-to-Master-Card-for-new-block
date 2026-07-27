@@ -530,6 +530,7 @@
       <input type="text" id="p-custname" readonly placeholder="จะแสดงอัตโนมัติเมื่อเลือก Cust-Name">
       <div class="lookup-hint">* Vlookup จากค่า Cust-Name</div>
       <button class="link-btn" id="btn-add-cust">+ เพิ่ม Cust Name</button>
+      <button class="link-btn" id="btn-manage-holiday" style="margin-left:16px;">🗓️ จัดการวันหยุด</button>
     </div>
 
     <div class="field">
@@ -607,6 +608,33 @@
     </div>
   </div>
 
+  <div class="view custpage" id="view-holiday">
+    <button class="back-btn" id="btn-back-holiday">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+      Back
+    </button>
+
+    <div class="cust-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line></svg>
+      <h2>ปฏิทินวันหยุด</h2>
+    </div>
+
+    <div class="cust-form">
+      <input type="date" id="h-date" style="flex:1;min-width:150px;padding:11px 12px;border:1.5px solid var(--card-border);border-radius:10px;font-size:13.5px;background:#fff;color:var(--ink);font-family:inherit;">
+      <input type="text" id="h-label" placeholder="เหตุผล เช่น วันหยุดนักขัตฤกษ์">
+      <button class="cust-add-btn" id="btn-holiday-add">+ เพิ่มวันหยุด</button>
+    </div>
+    <div class="msg" id="holiday-msg"></div>
+
+    <div class="cust-table-wrap">
+      <table class="cust-table">
+        <thead>
+          <tr><th>วันที่</th><th>เหตุผล</th><th>Manage</th></tr>
+        </thead>
+        <tbody id="holiday-tbody"></tbody>
+      </table>
+    </div>
+  </div>
   <div class="view diary" id="view-diary">
     <button class="back-btn" id="btn-back-diary">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
@@ -852,6 +880,7 @@ const views = {
   who: document.getElementById('view-who'),
   planning: document.getElementById('view-planning'),
   cust: document.getElementById('view-cust'),
+  holiday: document.getElementById('view-holiday'),
   diary: document.getElementById('view-diary'),
   artwork: document.getElementById('view-artwork'),
   artworkPersonal: document.getElementById('view-artwork-personal'),
@@ -874,6 +903,11 @@ document.getElementById('btn-get-started').addEventListener('click', () => goTo(
 document.getElementById('btn-back-who').addEventListener('click', () => goTo('who','splash'));
 document.getElementById('btn-back-planning').addEventListener('click', () => goTo('planning','who'));
 document.getElementById('btn-back-cust').addEventListener('click', () => goTo('cust','planning'));
+document.getElementById('btn-back-holiday').addEventListener('click', () => goTo('holiday','planning'));
+document.getElementById('btn-manage-holiday').addEventListener('click', () => {
+  goTo('planning','holiday');
+  renderHolidayTable();
+});
 document.getElementById('btn-back-diary').addEventListener('click', () => goTo('diary','who'));
 document.getElementById('btn-back-artwork').addEventListener('click', () => goTo('artwork','who'));
 document.getElementById('btn-back-artwork-personal').addEventListener('click', () => goTo('artworkPersonal','artwork'));
@@ -1102,6 +1136,77 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// ---------- Holiday calendar ----------
+let holidaySet = new Set();
+let holidayList = [];
+
+async function loadHolidays(){
+  const { data, error } = await sb.from('holidays').select('*').order('holiday_date', { ascending: true });
+  if(error){ console.error('loadHolidays error:', error); holidaySet = new Set(); holidayList = []; return; }
+  holidayList = data.map(h => ({ id: h.id, date: h.holiday_date, label: h.label }));
+  holidaySet = new Set(holidayList.map(h => h.date));
+}
+async function insertHoliday(h){
+  const { error } = await sb.from('holidays').insert({ id: h.id, holiday_date: h.date, label: h.label || null });
+  if(error) console.error('insertHoliday error:', error);
+}
+async function deleteHoliday(id){
+  const { error } = await sb.from('holidays').delete().eq('id', id);
+  if(error) console.error('deleteHoliday error:', error);
+}
+function renderHolidayTable(){
+  const tbody = document.getElementById('holiday-tbody');
+  if(holidayList.length === 0){
+    tbody.innerHTML = `<tr><td colspan="3"><div class="cust-empty">ยังไม่มีวันหยุดที่ตั้งไว้</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = holidayList.map(h => `
+    <tr data-id="${h.id}">
+      <td>${esc(h.date)}</td>
+      <td>${esc(h.label || '-')}</td>
+      <td>
+        <div class="manage-links">
+          <button class="del" data-id="${h.id}">ลบ</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  tbody.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm('ยืนยันลบวันหยุดนี้?')) return;
+      await deleteHoliday(btn.dataset.id);
+      await loadHolidays();
+      renderHolidayTable();
+    });
+  });
+}
+document.getElementById('btn-holiday-add').addEventListener('click', async () => {
+  const dateInputEl = document.getElementById('h-date');
+  const labelInputEl = document.getElementById('h-label');
+  const msg = document.getElementById('holiday-msg');
+  const date = dateInputEl.value;
+  const label = labelInputEl.value.trim();
+
+  if(!date){
+    msg.className = 'msg err';
+    msg.textContent = 'กรุณาเลือกวันที่';
+    return;
+  }
+  if(holidaySet.has(date)){
+    msg.className = 'msg err';
+    msg.textContent = 'วันที่นี้ถูกตั้งเป็นวันหยุดไว้แล้ว';
+    return;
+  }
+
+  await insertHoliday({ id: Date.now().toString(36) + Math.random().toString(36).slice(2,6), date, label });
+  await loadHolidays();
+  renderHolidayTable();
+  dateInputEl.value = '';
+  labelInputEl.value = '';
+  msg.className = 'msg ok';
+  msg.textContent = 'บันทึกวันหยุดแล้ว';
+});
+  
 // ---------- Cust master ----------
 let custMaster = [];
 let editingId = null;
@@ -1383,8 +1488,10 @@ function effectiveDateStr(iso){
   const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
   const eff = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   if(d >= noon) eff.setDate(eff.getDate() + 1);
-  // ข้ามวันอาทิตย์ (0 = อาทิตย์) ให้ไปขึ้นวันจันทร์แทน
-  if(eff.getDay() === 0) eff.setDate(eff.getDate() + 1);
+  // ข้ามวันอาทิตย์และวันหยุดที่ตั้งไว้ใน calendar ไปเรื่อยๆ จนกว่าจะเจอวันทำงาน
+  while(eff.getDay() === 0 || holidaySet.has(dateStr(eff))){
+    eff.setDate(eff.getDate() + 1);
+  }
   return dateStr(eff);
 }
 
@@ -1939,6 +2046,7 @@ async function renderSummaryChart(){
 
 (async function init(){
   await loadCustMaster();
+  await loadHolidays();
   renderCustDropdown();
   renderCustTable();
   initSummaryControls();
