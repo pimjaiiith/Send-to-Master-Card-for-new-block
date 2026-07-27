@@ -584,9 +584,11 @@
     </div>
     <div class="msg" id="cust-msg"></div>
 
-    <div class="filter-row" style="margin-bottom:14px;">
-      <input type="text" id="cust-search" placeholder="ค้นหา Cust name..." style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid var(--card-border);border-radius:10px;font-size:13.5px;font-family:inherit;background:#fff;color:var(--ink);">
-    </div>
+<div class="filter-row" style="margin-bottom:14px;">
+  <input type="text" id="cust-search" placeholder="ค้นหา Cust name..." style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid var(--card-border);border-radius:10px;font-size:13.5px;font-family:inherit;background:#fff;color:var(--ink);">
+  <button type="button" id="btn-cust-search" style="appearance:none;border:none;background:var(--navy);color:#fff;font-weight:700;font-size:13px;padding:0 18px;border-radius:10px;cursor:pointer;white-space:nowrap;">ค้นหา</button>
+  <button type="button" id="btn-cust-search-clear" style="appearance:none;border:1.5px solid var(--card-border);background:#fff;color:var(--ink-soft);font-weight:700;font-size:13px;padding:0 16px;border-radius:10px;cursor:pointer;white-space:nowrap;">ล้าง</button>
+</div>
 
     <div class="cust-table-wrap">
       <table class="cust-table">
@@ -1191,7 +1193,17 @@ document.getElementById('p-custcode').addEventListener('input', (e) => {
   const item = custMaster.find(c => c.custCode === e.target.value);
   document.getElementById('p-custname').value = item ? item.customerName : '';
 });
-
+// ---------- Cust search ----------
+document.getElementById('cust-search').addEventListener('input', renderCustTable);
+document.getElementById('cust-search').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') renderCustTable();
+});
+document.getElementById('btn-cust-search').addEventListener('click', renderCustTable);
+document.getElementById('btn-cust-search-clear').addEventListener('click', () => {
+  document.getElementById('cust-search').value = '';
+  renderCustTable();
+});
+  
 // ---------- File attach ----------
 // เก็บ object URL ของแต่ละช่องไฟล์ไว้ใช้ตอนกด "ดูไฟล์" (เปิดพรีวิว PDF ในแท็บใหม่)
 // เพื่อให้ผู้ใช้ตรวจสอบได้ว่าแนบไฟล์ถูกต้องก่อนกด Submit
