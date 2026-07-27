@@ -577,12 +577,16 @@
       <h2>จัดการฐานข้อมูลลูกค้า (Cust Name)</h2>
     </div>
 
-    <div class="cust-form">
+<div class="cust-form">
       <input type="text" id="c-custcode" placeholder="Cust name เช่น C001">
       <input type="text" id="c-custname" placeholder="Customer Name เช่น บริษัท เอบีซี จำกัด">
       <button class="cust-add-btn" id="btn-cust-add">+ เพิ่ม</button>
     </div>
     <div class="msg" id="cust-msg"></div>
+
+    <div class="filter-row" style="margin-bottom:14px;">
+      <input type="text" id="cust-search" placeholder="ค้นหา Cust name..." style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid var(--card-border);border-radius:10px;font-size:13.5px;font-family:inherit;background:#fff;color:var(--ink);">
+    </div>
 
     <div class="cust-table-wrap">
       <table class="cust-table">
@@ -1101,11 +1105,20 @@ function renderCustDropdown(){
 }
 function renderCustTable(){
   const tbody = document.getElementById('cust-tbody');
+  const searchTerm = (document.getElementById('cust-search').value || '').trim().toLowerCase();
+  const filtered = searchTerm
+    ? custMaster.filter(c => c.custCode.toLowerCase().includes(searchTerm))
+    : custMaster;
+
   if(custMaster.length === 0){
     tbody.innerHTML = `<tr><td colspan="3"><div class="cust-empty">ยังไม่มีข้อมูลลูกค้า เพิ่มรายการแรกด้านบน</div></td></tr>`;
     return;
   }
-  tbody.innerHTML = custMaster.map(c => `
+  if(filtered.length === 0){
+    tbody.innerHTML = `<tr><td colspan="3"><div class="cust-empty">ไม่พบ Cust name ที่ค้นหา</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(c => `
     <tr data-id="${c.id}">
       <td>${esc(c.custCode)}</td>
       <td>${esc(c.customerName)}</td>
@@ -1124,6 +1137,8 @@ function renderCustTable(){
       editingId = item.id;
       document.getElementById('c-custcode').value = item.custCode;
       document.getElementById('c-custname').value = item.customerName;
+      document.getElementById('cust-search').addEventListener('input', renderCustTable);
+      document.getElementById('btn-cust-add').addEventListener('click', async () => {
       document.getElementById('btn-cust-add').textContent = 'บันทึกการแก้ไข';
     });
   });
@@ -1148,6 +1163,17 @@ document.getElementById('btn-cust-add').addEventListener('click', async () => {
     msg.textContent = 'กรอก Cust name และ Customer Name ให้ครบ';
     return;
   }
+
+  // ตรวจสอบ Cust name ซ้ำ (ไม่สนตัวพิมพ์เล็ก/ใหญ่) ยกเว้นแถวที่กำลังแก้ไขอยู่
+  const duplicate = custMaster.some(c =>
+    c.custCode.trim().toLowerCase() === code.toLowerCase() && c.id !== editingId
+  );
+  if(duplicate){
+    msg.className = 'msg err';
+    msg.textContent = `Cust name "${code}" มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น`;
+    return;
+  }
+
   if(editingId){
     await updateCustomer(editingId, code, name);
     editingId = null;
