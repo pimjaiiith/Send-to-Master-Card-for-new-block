@@ -1383,6 +1383,8 @@ function effectiveDateStr(iso){
   const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
   const eff = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   if(d >= noon) eff.setDate(eff.getDate() + 1);
+  // ข้ามวันอาทิตย์ (0 = อาทิตย์) ให้ไปขึ้นวันจันทร์แทน
+  if(eff.getDay() === 0) eff.setDate(eff.getDate() + 1);
   return dateStr(eff);
 }
 
