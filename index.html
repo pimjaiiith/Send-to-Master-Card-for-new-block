@@ -1137,8 +1137,6 @@ function renderCustTable(){
       editingId = item.id;
       document.getElementById('c-custcode').value = item.custCode;
       document.getElementById('c-custname').value = item.customerName;
-      document.getElementById('cust-search').addEventListener('input', renderCustTable);
-      document.getElementById('btn-cust-add').addEventListener('click', async () => {
       document.getElementById('btn-cust-add').textContent = 'บันทึกการแก้ไข';
     });
   });
